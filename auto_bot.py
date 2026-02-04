@@ -8,25 +8,25 @@ from datetime import datetime
 
 # --- CONFIGURATION ---
 SF_PATH = r"C:\Program Files (x86)\Screaming Frog SEO Spider\ScreamingFrogSEOSpider.exe"
-BASE_URL = "https://www.cartownlexington.com/new-vehicles/"
-MAX_PAGES = 25  # How many pagination pages to generate
+# Default is New Vehicles, but user can override at runtime
+DEFAULT_URL = "https://www.cartownlexington.com/new-vehicles/"
+MAX_PAGES = 30  # Covers ~600 cars
 OUTPUT_DIR = os.path.join(os.getcwd(), "auto_crawl_data")
 URL_LIST_FILE = os.path.join(os.getcwd(), "urls_to_crawl.txt")
 
-def generate_url_list():
+def generate_url_list(base_url):
     print(f"Generating URL list for {MAX_PAGES} pages...")
+    print(f"Base Source: {base_url}")
+    
     with open(URL_LIST_FILE, "w") as f:
-        # Base URL (Page 1)
-        # f.write(BASE_URL + "\n") # Sometimes duplicate of p=0, skipping base
-        
         # Pagination URLs
         for i in range(MAX_PAGES):
-            if "?" in BASE_URL:
-                url = f"{BASE_URL}&_p={i}"
+            if "?" in base_url:
+                url = f"{base_url}&_p={i}"
             else:
-                url = f"{BASE_URL}?_p={i}" 
+                url = f"{base_url}?_p={i}" 
             f.write(url + "\n")
-    print(f"Saved URL list to {URL_LIST_FILE}")
+    print(f"Saved generated URLs to {URL_LIST_FILE}")
 
 def run_screaming_frog():
     if not os.path.exists(SF_PATH):
@@ -35,8 +35,12 @@ def run_screaming_frog():
 
     # Clean previous output
     if os.path.exists(OUTPUT_DIR):
-        shutil.rmtree(OUTPUT_DIR)
-    os.makedirs(OUTPUT_DIR)
+        try:
+            shutil.rmtree(OUTPUT_DIR)
+        except:
+            pass
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
 
     print("\n--- Starting Screaming Frog Crawl (Headless) ---")
     print("This may take a minute or two. Please wait...")
@@ -60,6 +64,10 @@ def run_screaming_frog():
 
 def clean_data():
     print("\n--- Processing Data ---")
+    
+    if not os.path.exists(OUTPUT_DIR):
+        return
+
     # Find the exported CSV in the output directory
     exported_files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith(".csv") and "custom_extraction" in f.lower()]
     
@@ -68,7 +76,7 @@ def clean_data():
         return
 
     csv_path = os.path.join(OUTPUT_DIR, exported_files[0])
-    print(f"Found report: {exported_files[0]}")
+    print(f"Processing report: {exported_files[0]}")
     
     try:
         # Read properly handling potential encoding issues
@@ -91,8 +99,8 @@ def clean_data():
                         data = json.loads(val)
                         all_vehicles.append(data)
                     except:
-                        # Try double quote fix
                         try:
+                            # Attempt fix for CSV double-quote escaping
                             data = json.loads(val.replace('""', '"'))
                             all_vehicles.append(data)
                         except:
@@ -121,15 +129,29 @@ def clean_data():
         print(f"Saved to: {os.path.abspath(final_filename)}")
         
         # Attempt to open the file automatically
-        os.startfile(final_filename)
+        try:
+            os.startfile(final_filename)
+        except:
+            pass
 
     except Exception as e:
         print(f"Error processing data: {e}")
 
 if __name__ == "__main__":
-    generate_url_list()
+    print("="*60)
+    print("   AUTO SCRAPER BOT")
+    print("="*60)
+    print(f"Default URL: {DEFAULT_URL}")
+    print("Tip: Paste a clean URL without page numbers (e.g. .../used-vehicles/).")
+    print("-" * 60)
+    
+    user_input = input("Enter Base URL (Press Enter to use Default): ").strip()
+    
+    target_url = user_input if user_input else DEFAULT_URL
+    
+    generate_url_list(target_url)
     success = run_screaming_frog()
     if success:
         clean_data()
     
-    print("\nDone.")
+    print("\nRun complete.")
